@@ -203,7 +203,7 @@ class GisSdkClient {
     // Create a Token Client for authorization calls.
     final CodeClientConfig codeConfig = CodeClientConfig(
       client_id: clientId,
-      redirect_uri: 'https://us-central1-angelina-cnnahw.cloudfunctions.net/projectIdLog',
+      redirect_uri: 'https://gini-web-rails-staging.herokuapp.com/api/v1/google/gis_auth/receive_auth_code',
       hosted_domain: hostedDomain,
       callback: allowInterop(_onCodeResponse),
       error_callback: allowInterop(_onCodeError),
