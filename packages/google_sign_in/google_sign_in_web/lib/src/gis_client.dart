@@ -200,17 +200,24 @@ class GisSdkClient {
     required CodeClientCallbackFn onResponse,
     required ErrorCallbackFn onError,
   }) {
+    _hostedDomain = hostedDomain;
+    _clientId = clientId;
+    _onResponse = onResponse;
+    _onError = onError;
+
     // Create a Token Client for authorization calls.
     final CodeClientConfig codeConfig = CodeClientConfig(
-      client_id: clientId,
-      redirect_uri: 'https://gini-web-rails-staging.herokuapp.com/api/v1/google/gis_auth/receive_auth_code',
-      hosted_domain: hostedDomain,
-      callback: allowInterop(_onCodeResponse),
-      error_callback: allowInterop(_onCodeError),
-      scope: scopes.join(' '),
-      select_account: false,
-      ux_mode: UxMode.redirect,
-    );
+        client_id: clientId,
+        redirect_uri:
+            'https://gini-web-rails-staging.herokuapp.com/api/v1/google/gis_auth/receive_auth_code',
+        hosted_domain: hostedDomain,
+        // callback: allowInterop(_onCodeResponse),
+        // error_callback: allowInterop(_onCodeError),
+        scope: scopes.join(' '),
+        enable_serial_consent: true,
+        select_account: false,
+        ux_mode: UxMode.redirect,
+        state: 'GINI_EVENT_ACCESS');
     return oauth2.initCodeClient(codeConfig);
   }
 
@@ -427,19 +434,41 @@ class GisSdkClient {
   Future<bool> requestScopes(List<String> scopes) async {
     // If we already know the user, use their `email` as a `hint`, so they don't
     // have to pick their user again in the Authorization popup.
+
     final GoogleSignInUserData? knownUser =
         utils.gisResponsesToUserData(_lastCredentialResponse);
 
-    _tokenClient.requestAccessToken(OverridableTokenClientConfig(
-      prompt: knownUser == null ? 'select_account' : '',
-      hint: knownUser?.email,
+    // Create a Token Client for authorization calls.
+    final CodeClientConfig codeConfig = CodeClientConfig(
+      client_id: _clientId,
+      // redirect_uri: 'https://gini-web-rails-staging.herokuapp.com/api/v1/google/gis_auth/receive_auth_code',
       scope: scopes.join(' '),
-      include_granted_scopes: true,
-    ));
+      callback: allowInterop(_onResponse),
+      error_callback: allowInterop(_onError),
+      hint: knownUser?.email,
+      enable_serial_consent: true,
+      select_account: false,
+      ux_mode: UxMode.popup,
+      // state: 'GINI_EVENT_ACCESS'
+    );
+    _codeClient = oauth2.initCodeClient(codeConfig);
+    _codeClient!.requestCode();
 
-    await _tokenResponses.stream.first;
-
-    return oauth2.hasGrantedAllScopes(_lastTokenResponse!, scopes);
+    final CodeResponse response = await _codeResponses.stream.first;
+    return response.code.isNotEmpty;
+    // final GoogleSignInUserData? knownUser =
+    //     utils.gisResponsesToUserData(_lastCredentialResponse);
+    //
+    // _tokenClient.requestAccessToken(OverridableTokenClientConfig(
+    //   prompt: knownUser == null ? 'select_account' : '',
+    //   hint: knownUser?.email,
+    //   scope: scopes.join(' '),
+    //   include_granted_scopes: true,
+    // ));
+    //
+    // await _tokenResponses.stream.first;
+    //
+    // return oauth2.hasGrantedAllScopes(_lastTokenResponse!, scopes);
   }
 
   /// Checks if the passed-in `accessToken` can access all `scopes`.
@@ -477,6 +506,10 @@ class GisSdkClient {
   late StreamController<CredentialResponse> _credentialResponses;
   late StreamController<TokenResponse> _tokenResponses;
   late StreamController<CodeResponse> _codeResponses;
+  late String _clientId;
+  late String? _hostedDomain;
+  late CodeClientCallbackFn _onResponse;
+  late ErrorCallbackFn _onError;
 
   // The last-seen credential and token responses
   CredentialResponse? _lastCredentialResponse;
